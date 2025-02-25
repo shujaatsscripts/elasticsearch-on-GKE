@@ -1,0 +1,282 @@
+eck-elasticsearch:
+  enabled: true
+  fullnameOverride: elasticsearch
+  version: 8.17.0
+  annotations:
+    eck.k8s.elastic.co/downward-node-labels: "topology.kubernetes.io/zone"
+  http:
+    tls:
+      selfSignedCertificate:
+        disabled: true
+  nodeSets:
+  - name: masters
+    count: 3
+    config:
+      node.roles: ["master"]
+      node.store.allow_mmap: false
+      node.attr.zone: ${ZONE}
+      cluster.routing.allocation.awareness.attributes: k8s_node_name,zone
+      xpack.security.authc:
+          anonymous:
+            username: anonymous
+            roles: superuser
+            authz_exception: false
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          resources:
+            limits:
+              memory: 6Gi
+              cpu: '3'
+          env:
+          - name: ZONE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['topology.kubernetes.io/zone']
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+                elasticsearch.k8s.elastic.co/statefulset-name: elasticsearch-es-masters
+        tolerations:
+        - key: "elasticsearch"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                  - gke-prod-elasticsearch-master-node-pool             
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+        # Adjust to your storage class name
+        #
+        # storageClassName: local-storage
+  - name: data
+    count: 6
+    config:
+      node.roles: ["data", "ingest"]
+      node.store.allow_mmap: false
+      node.attr.zone: ${ZONE}
+      cluster.routing.allocation.awareness.attributes: k8s_node_name,zone
+      xpack.security.authc:
+          anonymous:
+            username: anonymous
+            roles: superuser
+            authz_exception: false
+      # vm.max_map_count: 1310720
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          resources:
+            limits:
+              memory: 6Gi
+              cpu: '3'
+          env:
+          - name: ZONE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['topology.kubernetes.io/zone']
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+                elasticsearch.k8s.elastic.co/statefulset-name: elasticsearch-es-data
+        tolerations:
+        - key: "elasticsearch"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                  - gke-prod-elasticsearch-data-node-pool 
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+        # Adjust to your storage class name
+        #
+        # storageClassName: local-storage
+  - name: ingest
+    count: 1
+    config:
+      node.roles: ["ingest"]
+      node.store.allow_mmap: false
+      node.attr.zone: ${ZONE}
+      cluster.routing.allocation.awareness.attributes: k8s_node_name,zone
+      xpack.security.authc:
+          anonymous:
+            username: anonymous
+            roles: superuser
+            authz_exception: false
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          resources:
+            limits:
+              memory: 3Gi
+              cpu: '1'
+          env:
+          - name: ZONE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['topology.kubernetes.io/zone']
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+                elasticsearch.k8s.elastic.co/statefulset-name: elasticsearch-es-ingest
+        tolerations:
+        - key: "elasticsearch"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                  - gke-prod-elasticsearch-ingest-node-pool             
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi
+  - name: cordinating
+    count: 2
+    config:
+      node.roles: []
+      node.store.allow_mmap: false
+      node.attr.zone: ${ZONE}
+      cluster.routing.allocation.awareness.attributes: k8s_node_name,zone
+      xpack.security.authc:
+          anonymous:
+            username: anonymous
+            roles: superuser
+            authz_exception: false
+      # vm.max_map_count: 1310720
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          resources:
+            limits:
+              memory: 3Gi
+              cpu: '1'
+          env:
+          - name: ZONE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.annotations['topology.kubernetes.io/zone']
+        topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                elasticsearch.k8s.elastic.co/cluster-name: elasticsearch
+                elasticsearch.k8s.elastic.co/statefulset-name: elasticsearch-es-cordinating
+        tolerations:
+        - key: "elasticsearch"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                  - gke-prod-elasticsearch-master-node-pool
+
+
+eck-kibana:
+  enabled: true
+  fullnameOverride: kibana
+  version: 8.17.0
+  # Count of Kibana replicas to create.
+  count: 1
+  # Reference to ECK-managed Elasticsearch resource, ideally from {{ "elasticsearch.fullname" }}
+  #
+  elasticsearchRef:
+    name: elasticsearch
+    # namespace: default
+  http:
+    service:
+      spec:
+        # Type of service to deploy for Kibana.
+        # This deploys a load balancer in a cloud service provider, where supported.
+        # 
+        type: ClusterIP
+  podTemplate:
+    spec:
+      containers:
+      - name: kibana
+        env:
+          - name: NODE_OPTIONS
+            value: "--max-old-space-size=2048"
+        resources:
+          requests:
+            memory: 1Gi
+            cpu: 500m
+          limits:
+            memory: 2560Mi
+            cpu: '2'
+      tolerations:
+      - key: "elasticsearch"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: cloud.google.com/gke-nodepool
+                  operator: In
+                  values:
+                  - gke-prod-elasticsearch-master-node-pool

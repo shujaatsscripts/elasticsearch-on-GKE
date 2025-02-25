@@ -1,0 +1,15 @@
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: cloud.google.com/gke-nodepool
+          operator: In
+          values:
+          - gke-prod-elasticsearch-master-node-pool
+
+tolerations:
+- key: "elasticsearch"
+  operator: "Equal"
+  value: "true"
+  effect: "NoSchedule"
